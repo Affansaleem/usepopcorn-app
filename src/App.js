@@ -63,6 +63,7 @@ export default function App() {
   const [error, seterror] = useState("");
   const [query, setQuery] = useState("");
   const [Id, setId] = useState(null);
+  const controller = new AbortController();
 
   function handleMovieClick(id) {
     // setId(Id === id ? null : id);
@@ -79,12 +80,14 @@ export default function App() {
   function handleDeleteWatched(id) {
     setWatched((watched) => watched.filter((watched) => watched.Id !== id));
   }
+
   useEffect(() => {
     async function fetchMovies() {
       try {
         setisLoading(true);
         const res = await fetch(
-          `https://www.omdbapi.com/?apikey=${KEY}&s=${query}`
+          `https://www.omdbapi.com/?apikey=${KEY}&s=${query}`,
+          { signal: controller.signal }
         );
         if (!res.ok) {
           throw new Error("Something went wrong with the response");
@@ -96,7 +99,10 @@ export default function App() {
         setMovies(data.Search);
         setisLoading(false);
       } catch (err) {
-        console.log(err.message);
+        if (err.name !== "AbortError") {
+          console.log(err.message);
+          seterror(err.name);
+        }
       } finally {
         setisLoading(false);
       }
@@ -106,8 +112,13 @@ export default function App() {
       seterror("");
       return;
     }
+    handleCloseMovie();
     // will stop at this function ntil length is increase upto three
     fetchMovies(); //must call it again so that data is fetched again
+    // cleanup function
+    return function () {
+      controller.abort();
+    };
   }, [query]);
 
   return (
@@ -283,6 +294,27 @@ function MovieDetails({
     Genre: genre,
     Runtime: runTime,
   } = Movie;
+
+  // Key press event for manipulating DOM
+  useEffect(() => {
+    function callBack(e) {
+      if (e.code === "Escape") {
+        handleCloseMovie();
+      }
+    }
+    document.addEventListener("keydown", callBack);
+    return function () {
+      document.removeEventListener("keydown", callBack);
+    };
+  }, [handleCloseMovie]);
+  useEffect(() => {
+    document.title = `Movie | ${title}`;
+
+    return function () {
+      document.title = "usePopCorn";
+    };
+  }, [title]);
+
   useEffect(() => {
     async function showMovieDetails() {
       setisLoading(true);
